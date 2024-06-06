@@ -40,7 +40,6 @@ const db = new sqlite3.Database('./database.db', (err) => {
         )`);
 });
 
-// Configurar o middleware body-parser
 app.use(bodyParser.json());
 
 // Função para criar conta de bibliotecário
@@ -105,6 +104,21 @@ app.get('/alunos/:cpf', (req, res) => {
   });
 });
 
+//Consultar todos os alunos
+app.get('/alunos/todos', (res) => {
+  db.all('SELECT * FROM FichaAluno', (err, rows) => {
+    if (err) {
+      console.error(err.message);
+      res.status(500).send('Erro ao consultar alunos');
+    } else if (rows.length === 0) {
+      res.status(404).send('Nenhum aluno encontrado');
+    } else {
+      res.status(200).json(rows);
+    }
+  });
+});
+
+//Consultar bibliotecarios
 app.get('/bibliotecarios/:cpf', (req, res) => {
   const { cpf } = req.params;
   db.get('SELECT * FROM Bibliotecario WHERE CPFBibliotecario = ?', [cpf], (err, row) => {
@@ -187,6 +201,45 @@ app.get('/pendencias', (req, res) => {
   });
 });
 
+// Reservar o livro para um Aluno
+app.post('/reservar-livro', (req, res) => {
+  const { cpfAluno, codigoLivro } = req.body;
+
+  db.get('SELECT * FROM Livro WHERE CodigoLivro = ?', [codigoLivro], (err, livro) => {
+    if (err) {
+      console.error(err.message);
+      res.status(500).send('Erro ao verificar livro');
+      console.log('Erro ao verificar livro');
+    } else if (!livro) {
+      res.status(404).send('Livro não encontrado');
+      console.log('Livro não encontrado');
+    } else if (livro.CPFAluno) {
+      res.status(400).send('Livro já reservado por outro aluno');
+      console.log('Livro já reservado por outro aluno');
+    } else {
+      // Insere o CPF do aluno na tabela do livro
+      db.run('UPDATE Livro SET CPFAluno = ? WHERE CodigoLivro = ?', [cpfAluno, codigoLivro], (err) => {
+        if (err) {
+          console.error(err.message);
+          res.status(500).send('Erro ao reservar livro');
+          console.log('Erro ao reservar livro');
+        } else {
+          // Insere o código do livro na tabela do aluno
+          db.run('UPDATE FichaAluno SET CodigoLivro = ? WHERE CPFAluno = ?', [codigoLivro, cpfAluno], (err) => {
+            if (err) {
+              console.error(err.message);
+              res.status(500).send('Erro ao atualizar ficha do aluno');
+              console.log('Erro ao atualizar ficha do aluno');
+            } else {
+              res.status(200).send('Livro reservado com sucesso');
+              console.log('Livro reservado com sucesso');
+            }
+          });
+        }
+      });
+    }
+  });
+});
 // Iniciar servidor
 app.listen(port, () => {
   console.log(`Servidor está rodando em http://localhost:${port}`);
