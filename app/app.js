@@ -240,6 +240,38 @@ app.post('/reservar-livro', (req, res) => {
     }
   });
 });
+
+app.post('/devolver-livro', (req, res) => {
+  const { cpfAluno, codigoLivro } = req.body;
+
+  db.get('SELECT * FROM Livro WHERE CodigoLivro = ? AND CPFAluno = ?', [codigoLivro, cpfAluno], (err, livro) => {
+    if (err) {
+      console.error(err.message);
+      res.status(500).send('Erro ao verificar livro');
+    } else if (!livro) {
+      res.status(404).send('Livro não encontrado ou não está reservado por este aluno');
+    } else {
+      // Remove o CPF do aluno na tabela do livro
+      db.run('UPDATE Livro SET CPFAluno = NULL WHERE CodigoLivro = ?', [codigoLivro], (err) => {
+        if (err) {
+          console.error(err.message);
+          res.status(500).send('Erro ao registrar devolução do livro');
+        } else {
+          // Remove o código do livro na tabela do aluno
+          db.run('UPDATE FichaAluno SET CodigoLivro = NULL WHERE CPFAluno = ?', [cpfAluno], (err) => {
+            if (err) {
+              console.error(err.message);
+              res.status(500).send('Erro ao atualizar ficha do aluno');
+            } else {
+              res.status(200).send('Devolução de livro registrada com sucesso');
+            }
+          });
+        }
+      });
+    }
+  });
+});
+
 // Iniciar servidor
 app.listen(port, () => {
   console.log(`Servidor está rodando em http://localhost:${port}`);
